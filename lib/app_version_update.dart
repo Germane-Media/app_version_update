@@ -34,12 +34,7 @@ class AppVersionUpdate {
       country: country,
     );
     return AppVersionResult(
-        appleId: appleId,
-        playStoreId: playStoreId,
-        canUpdate: data.canUpdate,
-        storeUrl: data.storeUrl,
-        storeVersion: data.storeVersion,
-        platform: data.targetPlatform);
+        appleId: appleId, playStoreId: playStoreId, storeUrl: data.storeUrl, storeVersion: data.storeVersion, platform: data.targetPlatform);
   }
 
   /// Displays an alert dialog for the user to decide whether to enter update now or update later.
@@ -85,15 +80,11 @@ class AppVersionUpdate {
     AppVersionResult? appVersionResult,
     bool? mandatory = false,
     String? title = 'New version available',
-    TextStyle? titleTextStyle = const TextStyle(
-        fontSize: 24.0, fontWeight: FontWeight.w500, color: Colors.black),
+    TextStyle? titleTextStyle = const TextStyle(fontSize: 24.0, fontWeight: FontWeight.w500, color: Colors.black),
     String? content = 'Would you like to update your application?',
-    TextStyle? contentTextStyle = const TextStyle(
-        fontSize: 16.0, fontWeight: FontWeight.w400, color: Colors.black),
-    ButtonStyle? cancelButtonStyle = const ButtonStyle(
-        backgroundColor: WidgetStatePropertyAll(Colors.redAccent)),
-    ButtonStyle? updateButtonStyle = const ButtonStyle(
-        backgroundColor: WidgetStatePropertyAll(Colors.green)),
+    TextStyle? contentTextStyle = const TextStyle(fontSize: 16.0, fontWeight: FontWeight.w400, color: Colors.black),
+    ButtonStyle? cancelButtonStyle = const ButtonStyle(backgroundColor: WidgetStatePropertyAll(Colors.redAccent)),
+    ButtonStyle? updateButtonStyle = const ButtonStyle(backgroundColor: WidgetStatePropertyAll(Colors.green)),
     String? cancelButtonText = 'UPDATE LATER',
     String? updateButtonText = 'UPDATE',
     TextStyle? cancelTextStyle = const TextStyle(color: Colors.white),

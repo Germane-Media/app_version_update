@@ -5,12 +5,11 @@ class AppVersionData {
   String? storeVersion;
   String? storeUrl;
   TargetPlatform? targetPlatform;
-  bool? canUpdate;
 
-  AppVersionData(
-      {this.localVersion,
-      this.storeVersion,
-      this.storeUrl,
-      this.targetPlatform,
-      this.canUpdate = false});
+  AppVersionData({
+    this.localVersion,
+    this.storeVersion,
+    this.storeUrl,
+    this.targetPlatform,
+  });
 }
