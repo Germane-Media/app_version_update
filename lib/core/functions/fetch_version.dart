@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:developer' show log;
 import 'dart:io';
 
 import 'package:app_version_update/data/models/app_version_data.dart';
@@ -87,34 +88,34 @@ String? extractVersionFromHtmlRegexForAndroid(String htmlResponse, String key) {
     if (htmlResponse.isEmpty) {
       return null;
     }
-    print("htmlResponse is not empty");
+    log("htmlResponse is not empty");
 
     RegExp bodyRegex = RegExp(r'<body[^>]*>([\s\S]*?)</body>', caseSensitive: false);
     var bodyMatch = bodyRegex.firstMatch(htmlResponse);
 
     if (bodyMatch == null) {
-      print('No body tag found using regex');
+      log('No body tag found using regex');
       return null;
     }
-    print("body is not empty");
+    log("body is not empty");
 
     String bodyContent = bodyMatch.group(1)!;
 
     RegExp scriptRegex = RegExp(r'<script[^>]*>([\s\S]*?)</script>', caseSensitive: false);
     var scriptMatches = scriptRegex.allMatches(bodyContent);
-    print("scriptMatches size ${scriptMatches.length}");
+    log("scriptMatches size ${scriptMatches.length}");
 
     List<String> matchingScriptContents = [];
 
     for (var match in scriptMatches) {
       String scriptContent = match.group(1) ?? '';
       if (scriptContent.contains(key) && scriptContent.contains("AF_initDataCallback")) {
-        print("Found this script that has our KEY :\n $scriptContent");
+        // log("Found this script that has our KEY :\n $scriptContent");
         matchingScriptContents.add(scriptContent);
       }
     }
 
-    print('Found ${matchingScriptContents.length} script(s) containing key: "$key"');
+    log('Found ${matchingScriptContents.length} script(s) containing key: "$key"');
 
     // Fixed regex patterns with proper escaping
     // Pattern 1: ["x.x.x"] or ['x.x.x'] (array format)
@@ -135,22 +136,22 @@ String? extractVersionFromHtmlRegexForAndroid(String htmlResponse, String key) {
     List<RegExp> patterns = [pattern1, pattern2, pattern3, pattern4, pattern5];
 
     for (var pattern in patterns) {
-      print('Trying pattern: ${pattern.pattern}');
+      // log('Trying pattern: ${pattern.pattern}');
       for (var scriptContent in matchingScriptContents) {
         var versionMatch = pattern.firstMatch(scriptContent);
         if (versionMatch != null) {
           String foundVersion = versionMatch.groupCount >= 1 ? versionMatch.group(1)! : versionMatch.group(0)!;
-          print('Successfully extracted version pattern: $foundVersion');
-          print('Using pattern: ${pattern.pattern}');
+          log('Successfully extracted version pattern: $foundVersion');
+          log('Using pattern: ${pattern.pattern}');
           return foundVersion;
         }
       }
     }
 
-    print('No version pattern found with any pattern');
+    log('No version pattern found with any pattern');
     return null;
   } catch (e) {
-    print('Error in regex extraction: $e');
+    log('Error in regex extraction: $e');
     return null;
   }
 }
