@@ -8,16 +8,111 @@ import 'package:http/http.dart' as http;
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../values/consts/consts.dart';
+import 'package:device_info_plus/device_info_plus.dart';
+
+Future<bool> isXiaomiDevice() async {
+  if (!Platform.isAndroid) return false;
+
+  final deviceInfo = DeviceInfoPlugin();
+  final androidInfo = await deviceInfo.androidInfo;
+
+  final manufacturer = androidInfo.manufacturer.toLowerCase();
+
+  return manufacturer.contains('xiaomi') || manufacturer.contains('mi');
+}
+
+String? extractVersionFromMiStoreHtml(String htmlResponse) {
+  try {
+    if (htmlResponse.isEmpty) return null;
+
+    // versionName:"1.14.3"
+    final RegExp versionRegex = RegExp(r'versionName\s*:\s*"([\d.]+)"');
+
+    final match = versionRegex.firstMatch(htmlResponse);
+    if (match != null) {
+      final version = match.group(1);
+      log('MI Store version extracted: $version');
+      return version;
+    }
+
+    log('MI Store version not found');
+    return null;
+  } catch (e) {
+    log('MI Store extraction error: $e');
+    return null;
+  }
+}
+
+Future<AppVersionData> fetchMiStoreAndroid({
+  required PackageInfo packageInfo,
+}) async {
+  final packageName = packageInfo.packageName;
+
+  final uri = Uri.parse(
+    'https://global.app.mi.com/details?lo=IN&la=en&id=$packageName',
+  );
+
+  final response = await http.get(
+    uri,
+    headers: {
+      'User-Agent':
+          'Mozilla/5.0 (Linux; Android 13; Xiaomi) AppleWebKit/537.36',
+      'Accept-Language': 'en-IN,en;q=0.9',
+    },
+  );
+
+  if (response.statusCode != 200) {
+    throw 'Application not found in MI Store';
+  }
+
+  final storeVersion = extractVersionFromMiStoreHtml(response.body);
+
+  if (storeVersion == null) {
+    throw 'Failed to extract MI Store version';
+  }
+
+  return AppVersionData(
+    storeVersion: storeVersion,
+    storeUrl: uri.toString(),
+    localVersion: packageInfo.version,
+    targetPlatform: TargetPlatform.android,
+  );
+}
 
 /// Fetch version regarding platform.
 /// * ```appleId``` unique identifier in Apple Store, if null, we will use your package name.
 /// * ```playStoreId``` unique identifier in Play Store, if null, we will use your package name.
 /// * ```country``` (iOS only) region of store, if null, we will use 'us'.
-Future<AppVersionData> fetchVersion({String? playStoreId, String? appleId, String? country}) async {
+Future<AppVersionData> fetchVersion(
+    {String? playStoreId, String? appleId, String? country}) async {
   final packageInfo = await PackageInfo.fromPlatform();
   AppVersionData data = AppVersionData();
+  // if (Platform.isAndroid) {
+  //   data = await fetchAndroid(packageInfo: packageInfo, playStoreId: playStoreId);
+  // }
   if (Platform.isAndroid) {
-    data = await fetchAndroid(packageInfo: packageInfo, playStoreId: playStoreId);
+    final bool isMi = await isXiaomiDevice();
+
+    if (isMi) {
+      try {
+        log('Xiaomi device detected → checking MI Store');
+        data = await fetchMiStoreAndroid(
+          packageInfo: packageInfo,
+        );
+      } catch (e) {
+        log('MI Store check failed, fallback to Play Store: $e');
+        data = await fetchAndroid(
+          packageInfo: packageInfo,
+          playStoreId: playStoreId,
+        );
+      }
+    } else {
+      log("Not a MI device. So in playstore blog");
+      data = await fetchAndroid(
+        packageInfo: packageInfo,
+        playStoreId: playStoreId,
+      );
+    }
   } else if (Platform.isIOS) {
     data = await fetchIOS(
       packageInfo: packageInfo,
@@ -30,19 +125,22 @@ Future<AppVersionData> fetchVersion({String? playStoreId, String? appleId, Strin
   return data;
 }
 
-Future<AppVersionData> fetchAndroid({PackageInfo? packageInfo, String? playStoreId}) async {
+Future<AppVersionData> fetchAndroid(
+    {PackageInfo? packageInfo, String? playStoreId}) async {
   playStoreId = playStoreId ?? packageInfo?.packageName;
   final parameters = {
     "id": playStoreId,
   };
   var uri = Uri.https(playStoreAuthority, playStoreUndecodedPath, parameters);
-  final response = await http.get(uri, headers: headers).catchError((e) => throw e);
+  final response =
+      await http.get(uri, headers: headers).catchError((e) => throw e);
   if (response.statusCode == 200) {
     final String htmlString = response.body;
     if (playStoreId == null) {
       throw "Application id is not provided.";
     }
-    String? lastVersion = extractVersionFromHtmlRegexForAndroid(htmlString, playStoreId);
+    String? lastVersion =
+        extractVersionFromHtmlRegexForAndroid(htmlString, playStoreId);
 
     return AppVersionData(
       // canUpdate: packageInfo.version < lastVersion ? true : false,
@@ -56,9 +154,13 @@ Future<AppVersionData> fetchAndroid({PackageInfo? packageInfo, String? playStore
   }
 }
 
-Future<AppVersionData> fetchIOS({PackageInfo? packageInfo, String? appleId, String? country}) async {
-  assert(appleId != null || packageInfo != null, 'One between appleId or packageInfo must not be null');
-  var parameters = (appleId != null) ? {"id": appleId} : {'bundleId': packageInfo?.packageName};
+Future<AppVersionData> fetchIOS(
+    {PackageInfo? packageInfo, String? appleId, String? country}) async {
+  assert(appleId != null || packageInfo != null,
+      'One between appleId or packageInfo must not be null');
+  var parameters = (appleId != null)
+      ? {"id": appleId}
+      : {'bundleId': packageInfo?.packageName};
   if (country != null) {
     parameters['country'] = country;
   }
@@ -90,7 +192,8 @@ String? extractVersionFromHtmlRegexForAndroid(String htmlResponse, String key) {
     }
     log("htmlResponse is not empty");
 
-    RegExp bodyRegex = RegExp(r'<body[^>]*>([\s\S]*?)</body>', caseSensitive: false);
+    RegExp bodyRegex =
+        RegExp(r'<body[^>]*>([\s\S]*?)</body>', caseSensitive: false);
     var bodyMatch = bodyRegex.firstMatch(htmlResponse);
 
     if (bodyMatch == null) {
@@ -101,7 +204,8 @@ String? extractVersionFromHtmlRegexForAndroid(String htmlResponse, String key) {
 
     String bodyContent = bodyMatch.group(1)!;
 
-    RegExp scriptRegex = RegExp(r'<script[^>]*>([\s\S]*?)</script>', caseSensitive: false);
+    RegExp scriptRegex =
+        RegExp(r'<script[^>]*>([\s\S]*?)</script>', caseSensitive: false);
     var scriptMatches = scriptRegex.allMatches(bodyContent);
     log("scriptMatches size ${scriptMatches.length}");
 
@@ -109,7 +213,8 @@ String? extractVersionFromHtmlRegexForAndroid(String htmlResponse, String key) {
 
     for (var match in scriptMatches) {
       String scriptContent = match.group(1) ?? '';
-      if (scriptContent.contains(key) && scriptContent.contains("AF_initDataCallback")) {
+      if (scriptContent.contains(key) &&
+          scriptContent.contains("AF_initDataCallback")) {
         // log("Found this script that has our KEY :\n $scriptContent");
         matchingScriptContents.add(scriptContent);
       }
@@ -140,7 +245,9 @@ String? extractVersionFromHtmlRegexForAndroid(String htmlResponse, String key) {
       for (var scriptContent in matchingScriptContents) {
         var versionMatch = pattern.firstMatch(scriptContent);
         if (versionMatch != null) {
-          String foundVersion = versionMatch.groupCount >= 1 ? versionMatch.group(1)! : versionMatch.group(0)!;
+          String foundVersion = versionMatch.groupCount >= 1
+              ? versionMatch.group(1)!
+              : versionMatch.group(0)!;
           log('Successfully extracted version pattern: $foundVersion');
           log('Using pattern: ${pattern.pattern}');
           return foundVersion;
